@@ -1,5 +1,5 @@
 # Backup-Dirs-or-Files
-<a href="Backup Minecraft.jar">download JAR</a>
+<a href="Backup Files.jar">download JAR</a>
 
 <h4>backup any files or directories at a recurring interval</h4>
 
