@@ -42,8 +42,45 @@ import java.nio.file.Files;
 import org.apache.commons.io.FileUtils;
 
 public class Backup implements ItemListener {
-    private static String[] comboList = {"2 Weeks","Week","Day","Hour","Custom"};
+    //constants
+    private static final String[] COMBO_LIST = {"2 Weeks","Week","Day","Hour","Custom"};
+    
+    private static final int TWO_WEEKS = 1209600000;
+    private static final int ONE_WEEK = 604800000;
+    private static final int ONE_DAY = 86400000;
+    private static final int ONE_HOUR = 3600000;
+    
+    private static final String SET = "SET";
+    private static final String STOP = "STOP";
+    private static final String START = "START";
+    private static final String SELECT = "SELECT";
 
+    private static final String MS_UNIT = "ms";
+    
+    private static final String PATH_WARNING_MESSAGE = "One or more paths is not selected!";
+    private static final String INPUT_WARNING_MESSAGE = "Invalid Input, only put numbers please! Cannot be larger than " + Integer.MAX_VALUE + " ms";
+    private static final String WARNING_TITLE = "Warning";
+
+    private static final String SELECT_BACKUP_FILE_LABEL = "Please Select the FILE TO BACKUP";
+    private static final String SELECT_BACKUP_PATH_LABEL = "Please Select the PLACE TO BACKUP";
+    private static final String FILE_TO_BACKUP_LABEL = "File to Backup";
+    private static final String BACKUP_PATH_LABEL = "Place to Backup File";
+    
+    private static final String DESKTOP_PATH = "/Desktop";
+    private static final String USER_HOME = "user.home";
+
+    private static final String CHECK_FOR_LETTERS = ".*[a-z].*";
+    private static final String YEAR_MONTH_DAY_HOUR_MIN_SEC = "yyyy-MM-dd HH.mm.ss";
+
+    private static final int APP_WIDTH = 800;
+    private static final int APP_HEIGHT = 600;
+
+    private static final int GRID_ROWS = 3;
+    private static final int GRID_COLS = 1;
+
+    private static final String APP_TITLE = "Time Interval Backup";
+
+    //window components
     private static JFrame frame;
     private static JPanel setBackupIncrement, backupFileSelect, startStop;
 
@@ -56,45 +93,50 @@ public class Backup implements ItemListener {
     private static JLabel backupFrom, backupTo;
     private static JFileChooser fileChooser;
 
-    private static String backupFromPath, backupToPath;
-    String selected = "2 Weeks";
-
     private static JButton start, stop;
 
-    private static int msIncrement = 1209600000;
+    //variables
+    private static String backupFromPath, backupToPath;
+    private static String selected = COMBO_LIST[0];
 
+    private static int msIncrement = TWO_WEEKS;
+
+    //time components
     private static Timer timer;
 
-    private static DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH.mm.ss");  
+    private static DateTimeFormatter dtf = DateTimeFormatter.ofPattern(YEAR_MONTH_DAY_HOUR_MIN_SEC);  
     private static LocalDateTime now = LocalDateTime.now();
     
     public static void main(String[] args) throws IOException {
-        frame = new JFrame("TimedBackupFiles");
+        frame = new JFrame(APP_TITLE);
 
         setBackupIncrement = new JPanel();
         backupFileSelect = new JPanel();
         startStop = new JPanel();
 
+        //made purely for action listener
         Backup b = new Backup();
 
-        timeInc = new JComboBox<String>(comboList);
+        timeInc = new JComboBox<String>(COMBO_LIST);
         timeInc.addItemListener(b);
 
         customTime = new JTextField(10);
         customTime.setEnabled(false);
-        ms = new JLabel("ms");
+        ms = new JLabel(MS_UNIT);
         
-        setIncButton = new JButton("SET");
+        //disable custom button by default
+        setIncButton = new JButton(SET);
         setIncButton.setEnabled(false);
 
+        //if pressed, warning if custom time is blank, contains letters
+        //or larger than int limit, otherwise, set custom time interval
         setIncButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
                 String incNum = customTime.getText().toLowerCase();
 
-                if(incNum.isBlank() || incNum.matches(".*[a-z].*") || Long.parseLong(incNum) > Integer.MAX_VALUE) {
-                    JOptionPane.showMessageDialog(frame, "Invalid Input, only put numbers please! Cannot be larger than " + Integer.MAX_VALUE + " ms",
-                                "Warning", JOptionPane.WARNING_MESSAGE);
+                if(incNum.isBlank() || incNum.matches(CHECK_FOR_LETTERS) || Long.parseLong(incNum) > Integer.MAX_VALUE) {
+                    JOptionPane.showMessageDialog(frame, INPUT_WARNING_MESSAGE, WARNING_TITLE, JOptionPane.WARNING_MESSAGE);
                 }
                 else {
                     msIncrement = Integer.parseInt(incNum);
@@ -103,43 +145,48 @@ public class Backup implements ItemListener {
             }
         });
 
-        backupFrom = new JLabel("File to Backup");
-        backupTo = new JLabel("Place to Backup File");
+        backupFrom = new JLabel(FILE_TO_BACKUP_LABEL);
+        backupTo = new JLabel(BACKUP_PATH_LABEL);
 
-        fileChooser = new JFileChooser(System.getProperty("user.home") + "/Desktop");
+        //set default file choose path to desktop
+        fileChooser = new JFileChooser(System.getProperty(USER_HOME) + DESKTOP_PATH);
         fileChooser.setFileSelectionMode(JFileChooser.FILES_AND_DIRECTORIES);
 
-        selectOne = new JButton("SELECT");
+        selectOne = new JButton(SELECT);
+        //choose dir/file and store chosen path of backup dir/file
         selectOne.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                fileChooser.showDialog(null,"Please Select the FILE TO BACKUP");
+                fileChooser.showDialog(null, SELECT_BACKUP_FILE_LABEL);
                 fileChooser.setVisible(true);
 
                 if(fileChooser.getSelectedFile() != null)
                 {
                     backupFromPath = fileChooser.getSelectedFile().getAbsolutePath();
-                    selectOne.setBackground(new Color(0, 250, 0));
+                    selectOne.setBackground(Color.GREEN);
                 }
             }
         });
 
-        selectTwo = new JButton("SELECT");
+        selectTwo = new JButton(SELECT);
+        //choose backup location and store backup path
         selectTwo.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                fileChooser.showDialog(null,"Please Select the PLACE TO BACKUP");
+                fileChooser.showDialog(null, SELECT_BACKUP_PATH_LABEL);
                 fileChooser.setVisible(true);
                 
                 if(fileChooser.getSelectedFile() != null)
                 {
                     backupToPath = fileChooser.getSelectedFile().getAbsolutePath();
-                    selectTwo.setBackground(new Color(0, 250, 0));
+                    selectTwo.setBackground(Color.GREEN);
                 }
             }
         });
 
-        start = new JButton("Start");
+        start = new JButton(START);
+        //start timer to check if time interval has passed, then copy dir/file
+        //to backup location named the date and time of backup
         start.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -150,6 +197,7 @@ public class Backup implements ItemListener {
                         try {
                             now = LocalDateTime.now();
         
+                            //get extension of file to properly copy it over
                             String extension = "";
                             int i = backupFromPath.lastIndexOf(".");
                             int p = Math.max(backupFromPath.lastIndexOf('/'), backupFromPath.lastIndexOf('\\'));
@@ -158,9 +206,12 @@ public class Backup implements ItemListener {
                                 extension = "." + backupFromPath.substring(i+1);
                             }
         
+                            //prep backup dir/file and location
                             File fileToBackup = new File(backupFromPath);
                             File backupFile = new File(backupToPath + "/" + dtf.format(now) + extension);
         
+                            //if the file is a directory, copy it and its contents to the backup location
+                            //else copy just the file to the backup location
                             if(fileToBackup.isDirectory())
                                 FileUtils.copyDirectory(fileToBackup, backupFile);
                             else
@@ -171,15 +222,17 @@ public class Backup implements ItemListener {
                         }
                     }
                 });
+                //save one backup immediately
                 timer.setInitialDelay(0);
 
+                //if any of the backups are blank warn the user and don't start timer
+                //else disable the start button (user feedback) and start timer
                 if(backupFromPath == null || backupFromPath.isEmpty() || backupToPath == null || backupToPath.isEmpty()) {
-                    JOptionPane.showMessageDialog(frame, "One or more paths is not selected!",
-                                "Warning", JOptionPane.WARNING_MESSAGE);
+                    JOptionPane.showMessageDialog(frame, PATH_WARNING_MESSAGE, WARNING_TITLE, JOptionPane.WARNING_MESSAGE);
                 }
                 else
                 {
-                    start.setBackground(new Color(250,250,250));
+                    start.setBackground(Color.WHITE);
                     start.setEnabled(false);
     
                     timer.restart();
@@ -187,20 +240,22 @@ public class Backup implements ItemListener {
             }
         });
 
-        stop = new JButton("Stop");
+        stop = new JButton(STOP);
+        //enable and turn start button green and stop timer
         stop.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                start.setBackground(new Color(0,250,0));
+                start.setBackground(Color.GREEN);
                 start.setEnabled(true);
 
                 timer.stop(); 
             }
         });
 
-        start.setBackground(new Color(0,250,0));
-        stop.setBackground(new Color(250,0,0));
+        start.setBackground(Color.GREEN);
+        stop.setBackground(Color.RED);
 
+        //formatting the window
         backupFileSelect.add(backupFrom);
         backupFileSelect.add(selectOne);
         backupFileSelect.add(backupTo);
@@ -223,50 +278,38 @@ public class Backup implements ItemListener {
         startStop.setLayout(new FlowLayout());
 
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setLayout(new GridLayout(3, 1));
-        frame.setSize(new Dimension(800, 600));
+        frame.setLayout(new GridLayout(GRID_ROWS, GRID_COLS));
+        frame.setSize(new Dimension(APP_WIDTH, APP_HEIGHT));
         frame.setVisible(true);
     }
 
-    public void setInc()
-    {
-        String incNum = customTime.getText().toLowerCase();
-
-        if(incNum.isBlank() || incNum.matches(".*[a-z].*")) {
-            JOptionPane.showMessageDialog(frame, "Invalid Input, only put numbers please!",
-                        "Warning", JOptionPane.WARNING_MESSAGE);
-        }
-        else {
-            msIncrement = Integer.parseInt(customTime.getText());
-        }
-    }
-
+    //check what ComboBox option is selected and set relevant time delay
     @Override
     public void itemStateChanged(ItemEvent e) {
         if (e.getSource() == timeInc) {
             selected = (String) timeInc.getSelectedItem();
-            System.out.println(selected);
+            
             switch(selected) {
-                // one month in ms breaks the int limit, can't use long because timer only uses ints
+                // one month in ms breaks the int limit, can't use long because timer only uses int delay
                 case "2 Weeks":
                     customTime.setEnabled(false);
                     setIncButton.setEnabled(false);
-                    msIncrement = 1209600000; //1 week in ms
+                    msIncrement = TWO_WEEKS;
                     break;
                 case "Week":
                     customTime.setEnabled(false);
                     setIncButton.setEnabled(false);
-                    msIncrement = 604800000; //1 week in ms
+                    msIncrement = ONE_WEEK;
                     break;
                 case "Day":
                     customTime.setEnabled(false);
                     setIncButton.setEnabled(false);
-                    msIncrement = 86400000;
+                    msIncrement = ONE_DAY;
                     break;
                 case "Hour":
                     customTime.setEnabled(false);
                     setIncButton.setEnabled(false);
-                    msIncrement = 3600000;
+                    msIncrement = ONE_HOUR;
                     break;
                 default:
                     customTime.setEnabled(true);
